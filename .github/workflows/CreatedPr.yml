@@ -22,7 +22,7 @@ jobs:
         name: PR/프로젝트 변수 준비
         uses: actions/github-script@v8
         env:
-          PROJECT_NO: ${{ vars.PROJECT_NO_PHL }}
+          PROJECT_NO: ${{ vars.PROJECT_NUMBER_PHL }}
         with:
           github-token: ${{ secrets.ANDROID_TEMPLATE_REPO_TOKEN }}
           script: |
