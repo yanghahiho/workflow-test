@@ -1,0 +1,106 @@
+query GetIssueNumberState($id: ID!) {
+    node(id: $id) {
+        ... on Issue {
+            number
+            state
+            repository {
+                nameWithOwner
+            }
+        }
+    }
+}
+
+query GetIssueParent($id: ID!) {
+    node(id: $id) {
+        ... on Issue {
+            repository {
+                nameWithOwner
+            }
+            parent {
+                id
+                title
+                repository {
+                    nameWithOwner
+                }
+            }
+        }
+    }
+}
+
+query GetProjectItem($id: ID!) {
+    node(id: $id) {
+        ... on Issue {
+            repository {
+                nameWithOwner
+            }
+            projectItems(first: 20) {
+                nodes {
+                    project {
+                        id
+                    }
+                }
+            }
+        }
+    }
+}
+
+query GetProjectMeta($org: String!, $number: Int!) {
+    organization(login: $org) {
+        projectV2(number: $number) {
+            id
+        }
+    }
+}
+
+query GetRepoProjectMetaByNumber($owner: String!, $repo: String!, $number: Int!) {
+    repository(owner: $owner, name: $repo) {
+        nameWithOwner
+        projectV2(number: $number) {
+            id
+            number
+            title
+            closed
+        }
+    }
+}
+
+query GetPullRequestProjectItem($id: ID!) {
+    node(id: $id) {
+        ... on PullRequest {
+            repository {
+                nameWithOwner
+            }
+            projectItems(first: 50) {
+                nodes {
+                    project {
+                        id
+                    }
+                }
+            }
+        }
+    }
+}
+
+query GetSubIssuesWithStatus($id: ID!, $cursor: String) {
+    node(id: $id) {
+        ... on Issue {
+            repository {
+                nameWithOwner
+            }
+            subIssues(first: 100, after: $cursor) {
+                nodes {
+                    id
+                    number
+                    state
+                    repository {
+                        nameWithOwner
+                    }
+                }
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+            }
+        }
+    }
+}
