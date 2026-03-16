@@ -91,6 +91,7 @@ jobs:
                 context,
                 pullRequestNodeId: prNodeId,
                 projectNumber: projectNo,
+                org: 'mirusystems',
               });
 
               if (!result.found) {

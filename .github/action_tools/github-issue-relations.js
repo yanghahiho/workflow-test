@@ -55,14 +55,14 @@ async function ensureProjectLinked({ github, context, issueNodeId, projectNumber
 }
 
 // PR를 레포지토리 프로젝트(번호 기준)에 연결한다. 프로젝트가 없으면 skip 처리한다.
-async function ensurePullRequestProjectLinkedByNumber({ github, context, pullRequestNodeId, projectNumber }) {
+async function ensurePullRequestProjectLinkedByNumber({ github, context, pullRequestNodeId, projectNumber, org }) {
   const expectedRepo = resolveExpectedRepoFullName({ context });
   const projectData = await runGraphql({
     github,
     filePath: GRAPHQL_READ_FILE,
     operationName: 'GetRepoProjectMetaByNumber',
     variables: {
-      owner: context.repo.owner,
+      owner: org,
       repo: context.repo.repo,
       number: Number(projectNumber),
     },
