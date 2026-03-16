@@ -1,0 +1,101 @@
+name: "createdPr"
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    types: [ opened ]
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+      repository-projects: write
+    outputs:
+      should_run: ${{ steps.prepare.outputs.should_run }}
+      pr_number: ${{ steps.prepare.outputs.pr_number }}
+      pr_node_id: ${{ steps.prepare.outputs.pr_node_id }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: prepare
+        name: PR/프로젝트 변수 준비
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.ANDROID_TEMPLATE_REPO_TOKEN || github.token }}
+          script: |
+            const { parsePullRequestContext } = require('./.github/action_tools/context-trigger-parsing');
+            const { initSkipOutputs } = require('./.github/action_tools/workflow-orchestration');
+            const { logDetailedError } = require('./.github/action_tools/error-logging');
+
+            try {
+              initSkipOutputs({
+                core,
+                outputs: {
+                  should_run: 'false',
+                  pr_number: '',
+                  pr_node_id: '',
+                },
+              });
+
+              const pr = parsePullRequestContext({ context });
+
+              core.setOutput('pr_number', String(pr.pullRequestNumber));
+              core.setOutput('pr_node_id', pr.pullRequestNodeId);
+              core.setOutput('should_run', 'true');
+            } catch (error) {
+              logDetailedError({ error, label: 'CreatedPr/setup 실패', logger: console });
+              throw error;
+            }
+
+  connect_project:
+    needs: setup
+    if: ${{ needs.setup.outputs.should_run == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+      repository-projects: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: 생성 PR을 프로젝트에 연결
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.ANDROID_TEMPLATE_REPO_TOKEN || github.token }}
+          script: |
+            const { ensurePullRequestProjectLinkedToRepoProject } = require('./.github/action_tools/github-issue-relations');
+            const { logDetailedError } = require('./.github/action_tools/error-logging');
+
+            try {
+              const repoProbe = await github.rest.repos.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
+              console.log(`repo probe ok: ${repoProbe.data.full_name}, viewer_permission=${repoProbe.data.permissions ? JSON.stringify(repoProbe.data.permissions) : 'n/a'}`);
+
+              const prNodeId = '${{ needs.setup.outputs.pr_node_id }}';
+              const result = await ensurePullRequestProjectLinkedToRepoProject({
+                github,
+                context,
+                pullRequestNodeId: prNodeId,
+              });
+
+              if (!result.found) {
+                console.log('레포에 연결된 open 프로젝트가 없어 연결을 스킵합니다.');
+                return;
+              }
+
+              console.log(`PR #${{ needs.setup.outputs.pr_number }} project 연결 결과: ${JSON.stringify(result)}`);
+            } catch (error) {
+              logDetailedError({
+                error,
+                label: 'CreatedPr/connect_project 실패',
+                issueNumber: Number('${{ needs.setup.outputs.pr_number }}'),
+                logger: console,
+              });
+              throw error;
+            }
