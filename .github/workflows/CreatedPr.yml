@@ -19,13 +19,12 @@ jobs:
       pr_number: ${{ steps.prepare.outputs.pr_number }}
       pr_node_id: ${{ steps.prepare.outputs.pr_node_id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - id: prepare
         name: PR/프로젝트 변수 준비
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
-          # 우선 PAT를 사용하고, 미설정이면 기본 GITHUB_TOKEN을 사용한다.
           github-token: ${{ secrets.ANDROID_TEMPLATE_REPO_TOKEN || github.token }}
           script: |
             const { parsePullRequestContext } = require('./.github/action_tools/context-trigger-parsing');
@@ -61,10 +60,10 @@ jobs:
       contents: read
       repository-projects: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: 생성 PR을 프로젝트에 연결
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.ANDROID_TEMPLATE_REPO_TOKEN || github.token }}
           script: |
@@ -72,6 +71,12 @@ jobs:
             const { logDetailedError } = require('./.github/action_tools/error-logging');
 
             try {
+              const repoProbe = await github.rest.repos.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
+              console.log(`repo probe ok: ${repoProbe.data.full_name}, viewer_permission=${repoProbe.data.permissions ? JSON.stringify(repoProbe.data.permissions) : 'n/a'}`);
+
               const prNodeId = '${{ needs.setup.outputs.pr_node_id }}';
               const result = await ensurePullRequestProjectLinkedToRepoProject({
                 github,
