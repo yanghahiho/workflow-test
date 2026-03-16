@@ -63,7 +63,6 @@ async function ensurePullRequestProjectLinkedByNumber({ github, context, pullReq
     operationName: 'GetRepoProjectMetaByNumber',
     variables: {
       owner: org,
-      repo: context.repo.repo,
       number: Number(projectNumber),
     },
   });
@@ -109,6 +108,78 @@ async function ensurePullRequestProjectLinkedByNumber({ github, context, pullReq
   });
 
   return { found: true, added: true, skipped: false, projectId: project.id };
+}
+
+// PR를 레포지토리에 연결된 첫 open 프로젝트에 연결한다. 프로젝트가 없으면 skip 처리한다.
+async function ensurePullRequestProjectLinkedToRepoProject({ github, context, pullRequestNodeId }) {
+  const expectedRepo = resolveExpectedRepoFullName({ context });
+  const projectData = await runGraphql({
+    github,
+    filePath: GRAPHQL_READ_FILE,
+    operationName: 'GetRepoLinkedProjects',
+    variables: {
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+    },
+  });
+
+  const projectRepo = projectData?.repository?.nameWithOwner || null;
+  assertSameRepoOrThrow({
+    actualRepo: projectRepo,
+    expectedRepo,
+    label: '프로젝트 조회 대상 레포',
+  });
+
+  const projects = projectData?.repository?.projectsV2?.nodes || [];
+  const targetProject = projects.find((project) => project?.id && !project.closed) || null;
+  if (!targetProject) {
+    return { found: false, added: false, skipped: true, reason: 'project_not_found_or_closed' };
+  }
+
+  const itemData = await runGraphql({
+    github,
+    filePath: GRAPHQL_READ_FILE,
+    operationName: 'GetPullRequestProjectItem',
+    variables: { id: pullRequestNodeId },
+  });
+  const prRepo = itemData?.node?.repository?.nameWithOwner || null;
+  assertSameRepoOrThrow({
+    actualRepo: prRepo,
+    expectedRepo,
+    label: '프로젝트 연결 대상 PR',
+  });
+
+  const existingItem = itemData?.node?.projectItems?.nodes?.find((node) => node.project.id === targetProject.id);
+  if (existingItem) {
+    return {
+      found: true,
+      added: false,
+      skipped: true,
+      reason: 'already_linked',
+      projectId: targetProject.id,
+      projectNumber: targetProject.number,
+      projectTitle: targetProject.title,
+    };
+  }
+
+  await runGraphql({
+    github,
+    filePath: GRAPHQL_WRITE_FILE,
+    operationName: 'AddProjectItem',
+    variables: {
+      projectId: targetProject.id,
+      contentId: pullRequestNodeId,
+    },
+  });
+
+  return {
+    found: true,
+    added: true,
+    skipped: false,
+    projectId: targetProject.id,
+    projectNumber: targetProject.number,
+    projectTitle: targetProject.title,
+  };
 }
 
 // child를 target 부모에 연결한다. (이미 부모가 있으면 재연결하지 않고 스킵)
@@ -355,6 +426,7 @@ async function selectTopLevelIssues({ github, context, issueNodeIds }) {
 module.exports = {
   ensureProjectLinked,
   ensurePullRequestProjectLinkedByNumber,
+  ensurePullRequestProjectLinkedToRepoProject,
   linkIssueToParent,
   collectDirectChildrenByState,
   moveChildrenToParent,

@@ -64,6 +64,20 @@ query GetRepoProjectMetaByNumber($owner: String!, $repo: String!, $number: Int!)
     }
 }
 
+query GetRepoLinkedProjects($owner: String!, $repo: String!) {
+    repository(owner: $owner, name: $repo) {
+        nameWithOwner
+        projectsV2(first: 20) {
+            nodes {
+                id
+                number
+                title
+                closed
+            }
+        }
+    }
+}
+
 query GetPullRequestProjectItem($id: ID!) {
     node(id: $id) {
         ... on PullRequest {
